@@ -2,15 +2,16 @@ import express from 'express';
 import multer from 'multer';
 import cors from 'cors';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+import { v2 as cloudinary } from 'cloudinary';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 const app = express();
 
-// Enable CORS first
 app.use(cors({
   origin: ['http://localhost:8080', 'https://goldenphotography.in', 'https://goldenphotography.vercel.app', 'https://goldenbackend-six.vercel.app'],
   credentials: true,
@@ -19,12 +20,11 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Configure multer for memory storage (Vercel serverless)
 const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|mp4|mov|avi/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -38,47 +38,72 @@ const upload = multer({
   }
 });
 
-// Upload endpoint
-app.post('/api/upload', upload.single('file'), (req, res) => {
+app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Convert buffer to base64 data URL
-    const base64 = req.file.buffer.toString('base64');
-    const dataUrl = `data:${req.file.mimetype};base64,${base64}`;
+    const isVideo = req.file.mimetype.startsWith('video');
+    
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: isVideo ? 'video' : 'auto',
+          folder: 'golden-photography'
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
     
     res.json({
       success: true,
       file: {
-        url: dataUrl,
-        type: req.file.mimetype.startsWith('video') ? 'video' : 'image'
+        url: result.secure_url,
+        type: isVideo ? 'video' : 'image'
       }
     });
   } catch (error) {
+    console.error('Upload error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Upload endpoint (alternative route)
-app.post('/upload', upload.single('file'), (req, res) => {
+app.post('/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const base64 = req.file.buffer.toString('base64');
-    const dataUrl = `data:${req.file.mimetype};base64,${base64}`;
+    const isVideo = req.file.mimetype.startsWith('video');
+    
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: isVideo ? 'video' : 'auto',
+          folder: 'golden-photography'
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
     
     res.json({
       success: true,
       file: {
-        url: dataUrl,
-        type: req.file.mimetype.startsWith('video') ? 'video' : 'image'
+        url: result.secure_url,
+        type: isVideo ? 'video' : 'image'
       }
     });
   } catch (error) {
+    console.error('Upload error:', error);
     res.status(500).json({ error: error.message });
   }
 });
