@@ -1,7 +1,6 @@
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
-const path = require('path');
 const cloudinary = require('cloudinary').v2;
 require('dotenv').config();
 
@@ -18,15 +17,7 @@ app.use(express.json());
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|mp4|mov|avi/;
-    if (allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only images and videos allowed'));
-    }
-  }
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 app.get('/', (req, res) => res.json({ status: 'Golden Photography API OK' }));
