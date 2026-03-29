@@ -15,104 +15,61 @@ cloudinary.config({
 const app = express();
 
 app.use(cors({
-  origin: ['http://localhost:8080', 'https://goldenphotography.in', 'https://goldenphotography.vercel.app', 'https://goldenbackend-six.vercel.app'],
-  credentials: true,
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
 
-const storage = multer.memoryStorage();
-
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|mp4|mov|avi/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
-    if (mimetype && extname) {
-      return cb(null, true);
+    const allowed = /jpeg|jpg|png|gif|mp4|mov|avi/;
+    if (allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype)) {
+      cb(null, true);
     } else {
-      cb(new Error('Only images and videos are allowed!'));
+      cb(new Error('Only images and videos allowed'));
     }
   }
 });
 
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.get('/', (req, res) => res.json({ status: 'Golden Photography API OK' }));
+
+const handleUpload = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
 
     const isVideo = req.file.mimetype.startsWith('video');
-    
-    const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          resource_type: isVideo ? 'video' : 'auto',
-          folder: 'golden-photography'
-        },
+
+    const uploadResult = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { resource_type: isVideo ? 'video' : 'auto', folder: 'golden-photography' },
         (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
+          if (error || !result) return reject(error || new Error('Upload failed'));
+          resolve(result);
         }
-      );
-      uploadStream.end(req.file.buffer);
+      ).end(req.file.buffer);
     });
-    
-    res.json({
+
+    return res.json({
       success: true,
       file: {
-        url: result.secure_url,
+        url: uploadResult.secure_url,
         type: isVideo ? 'video' : 'image'
       }
     });
-  } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error('Upload error:', err);
+    return res.status(500).json({ success: false, error: err.message || 'Upload failed' });
   }
-});
+};
 
-app.post('/upload', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const isVideo = req.file.mimetype.startsWith('video');
-    
-    const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          resource_type: isVideo ? 'video' : 'auto',
-          folder: 'golden-photography'
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      uploadStream.end(req.file.buffer);
-    });
-    
-    res.json({
-      success: true,
-      file: {
-        url: result.secure_url,
-        type: isVideo ? 'video' : 'image'
-      }
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+app.post('/api/upload', upload.single('file'), handleUpload);
+app.post('/upload', upload.single('file'), handleUpload);
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 export default app;
