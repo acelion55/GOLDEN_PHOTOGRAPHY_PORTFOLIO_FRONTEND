@@ -1,10 +1,9 @@
-import express from 'express';
-import multer from 'multer';
-import cors from 'cors';
-import path from 'path';
-import { v2 as cloudinary } from 'cloudinary';
-import dotenv from 'dotenv';
-dotenv.config();
+const express = require('express');
+const multer = require('multer');
+const cors = require('cors');
+const path = require('path');
+const cloudinary = require('cloudinary').v2;
+require('dotenv').config();
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -14,12 +13,7 @@ cloudinary.config({
 
 const app = express();
 
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type'] }));
 app.use(express.json());
 
 const upload = multer({
@@ -43,11 +37,12 @@ const handleUpload = async (req, res) => {
 
     const isVideo = req.file.mimetype.startsWith('video');
 
-    const uploadResult = await new Promise((resolve, reject) => {
+    const result = await new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         { resource_type: isVideo ? 'video' : 'auto', folder: 'golden-photography' },
         (error, result) => {
-          if (error || !result) return reject(error || new Error('Upload failed'));
+          if (error) return reject(error);
+          if (!result) return reject(new Error('No result from Cloudinary'));
           resolve(result);
         }
       ).end(req.file.buffer);
@@ -56,7 +51,7 @@ const handleUpload = async (req, res) => {
     return res.json({
       success: true,
       file: {
-        url: uploadResult.secure_url,
+        url: result.secure_url,
         type: isVideo ? 'video' : 'image'
       }
     });
@@ -72,4 +67,4 @@ app.post('/upload', upload.single('file'), handleUpload);
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-export default app;
+module.exports = app;
